@@ -43,6 +43,7 @@ dependencies = [
     "funasr==1.1.2",
     "opencc-python-reimplemented==0.1.7",
     "torchaudio",
+    "accelerate==0.33.0",
 ]
 
 [project.optional-dependencies]

@@ -14,6 +14,7 @@ from torch.nn import functional as F
 from torch.nn.attention import SDPBackend, sdpa_kernel
 from torch.utils.checkpoint import checkpoint
 from transformers import AutoTokenizer
+from accelerate import init_empty_weights, load_checkpoint_and_dispatch
 
 from fish_speech.conversation import SEMANTIC_TOKEN
 from fish_speech.utils import RankedLogger
@@ -341,7 +342,9 @@ class BaseTransformer(nn.Module):
 
         tokenizer = AutoTokenizer.from_pretrained(str(path))
         log.info(f"Loading model from {path}, config: {config}")
-        model = model_cls(config, tokenizer=tokenizer)
+        
+        with init_empty_weights():
+            model = model_cls(config, tokenizer=tokenizer)
 
         if lora_config is not None:
             setup_lora(model, lora_config)
@@ -350,7 +353,6 @@ class BaseTransformer(nn.Module):
         if load_weights is False:
             log.info("Randomly initialized model")
         else:
-
             if "int8" in str(Path(path)):
                 logger.info("Using int8 weight-only quantization!")
                 from tools.llama.quantize import WeightOnlyInt8QuantHandler
@@ -368,37 +370,14 @@ class BaseTransformer(nn.Module):
                 simple_quantizer = WeightOnlyInt4QuantHandler(model, groupsize)
                 model = simple_quantizer.convert_for_runtime()
 
-            weights = torch.load(
-                Path(path) / "model.pth", map_location="cpu", mmap=True
+            model = load_checkpoint_and_dispatch(
+                model, 
+                f"{path}/model.pth",
+                device_map="auto", 
+                no_split_module_classes=["TransformerBlock"]
             )
 
-            if "state_dict" in weights:
-                logger.warning(
-                    "Using a TextToSemantic LightningModule checkpoint, "
-                    "please make sure it is a full model, not a LoRA model."
-                )
-                weights = weights["state_dict"]
-
-            if next(iter(weights.keys())).startswith("model."):
-                logger.info(
-                    f"Remove prefix 'model.' created by TextToSemantic LightningModule from keys"
-                )
-                new_weights = OrderedDict()
-                for k, v in weights.items():
-                    new_weights[k.replace("model.", "")] = v
-                weights = new_weights
-
-            # Verify the name and shape of parameters since strict=False in load_state_dict.
-            for k, v in model.named_parameters():
-                if k not in weights:
-                    logger.warning(f"No weight for {k}")
-                elif v.shape != weights[k].shape:
-                    logger.warning(
-                        f"Shape mismatch for {k}: {v.shape} vs {weights[k].shape}"
-                    )
-
-            err = model.load_state_dict(weights, strict=False, assign=True)
-            log.info(f"Loaded weights with error: {err}")
+            log.info(f"Loaded weights using accelerate")
 
         return model
 

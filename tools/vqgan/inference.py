@@ -10,38 +10,31 @@ from hydra import compose, initialize
 from hydra.utils import instantiate
 from loguru import logger
 from omegaconf import OmegaConf
+from accelerate import init_empty_weights, load_checkpoint_and_dispatch
 
 from fish_speech.utils.file import AUDIO_EXTENSIONS
 
 # register eval resolver
 OmegaConf.register_new_resolver("eval", eval)
 
-
 def load_model(config_name, checkpoint_path, device="cuda"):
     hydra.core.global_hydra.GlobalHydra.instance().clear()
     with initialize(version_base="1.3", config_path="../../fish_speech/configs"):
         cfg = compose(config_name=config_name)
 
-    model = instantiate(cfg)
-    state_dict = torch.load(
-        checkpoint_path,
-        map_location=device,
+    with init_empty_weights():
+        model = instantiate(cfg)
+
+    model = load_checkpoint_and_dispatch(
+        model, 
+        checkpoint=checkpoint_path,
+        device_map="auto",
+        no_split_module_classes=["FireflyArchitecture"]  # Adjust this based on your model architecture
     )
-    if "state_dict" in state_dict:
-        state_dict = state_dict["state_dict"]
 
-    if any("generator" in k for k in state_dict):
-        state_dict = {
-            k.replace("generator.", ""): v
-            for k, v in state_dict.items()
-            if "generator." in k
-        }
-
-    result = model.load_state_dict(state_dict, strict=False)
     model.eval()
-    model.to(device)
 
-    logger.info(f"Loaded model: {result}")
+    logger.info(f"Loaded model using device map: {model.hf_device_map}")
     return model
 
 
