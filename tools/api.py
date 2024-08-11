@@ -216,7 +216,7 @@ def inference(req: InvokeRequest):
     if lab_path and wav_path:
         with open(lab_path, "r", encoding="utf-8") as lab_file:
             ref_text = lab_file.read()
-        req.reference_audio = wav_path
+        req.reference_audio = str(wav_path)
         req.reference_text = ref_text
         logger.info("ref_path: " + str(wav_path))
         logger.info("ref_text: " + ref_text)

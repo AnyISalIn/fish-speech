@@ -27,7 +27,7 @@ def load_model(config_name, checkpoint_path, device="cuda"):
 
     model = load_checkpoint_and_dispatch(
         model, 
-        checkpoint=checkpoint_path,
+        checkpoint=str(checkpoint_path),
         device_map="auto",
         no_split_module_classes=["FireflyArchitecture"]  # Adjust this based on your model architecture
     )
