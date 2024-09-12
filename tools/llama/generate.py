@@ -234,16 +234,14 @@ def generate(
     Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
     """
 
-    # create an empty tensor of the expected final shape and fill in the current tokens
-    T = prompt.size(1)
+    # Get the dimensions of the prompt
+    codebook_dim, T = prompt.size()
 
     device, dtype = prompt.device, prompt.dtype
 
-    codebook_dim = 1 + model.config.num_codebooks
-    # create an empty tensor of the expected final shape and fill in the current tokens
-    empty = torch.empty((codebook_dim, max_new_tokens), dtype=dtype, device=device)
-    empty[:, :T] = prompt
-    seq = empty
+    # Create an empty tensor of the expected final shape and fill in the current tokens
+    seq = torch.empty((codebook_dim, T + max_new_tokens), dtype=dtype, device=device)
+    seq[:, :T] = prompt
     input_pos = torch.arange(0, T, device=device)
 
     # Use non-accelerated version for now, to avoid compilation overhead
