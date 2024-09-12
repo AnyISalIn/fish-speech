@@ -184,6 +184,7 @@ def decode_n_tokens(
         device=cur_token.device,
     )
 
+    i = 0  # Initialize i outside the loop
     for i in tqdm(range(num_new_tokens)):
         # We need to get windowed repeat penalty
         win_size = 16
